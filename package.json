@@ -21,7 +21,6 @@
     "@civ-clone/core-city": "^0.1.0",
     "@civ-clone/core-player": "^0.1.0",
     "@civ-clone/core-rule": "^0.1.0",
-    "@civ-clone/core-terrain": "^0.1.0",
     "@civ-clone/core-unit": "^0.1.0",
     "@civ-clone/simple-world-generator": "github:civ-clone/simple-world-generator",
     "@types/chai": "^4.2.14",
