@@ -1,6 +1,7 @@
 {
   "name": "@civ-clone/simple-world-path",
   "version": "0.1.0",
+  "main": "index.js",
   "repository": "git@github.com:civ-clone/simple-world-path.git",
   "keywords": [
     "typescript",
@@ -8,7 +9,6 @@
   ],
   "author": "dom111 <dom111@users.noreply.github.com>",
   "license": "MIT",
-  "private": false,
   "scripts": {
     "build": "npm run ts:compile && npm run prettier:format",
     "prettier:check": "prettier --config .prettierrc '**/*.ts'",

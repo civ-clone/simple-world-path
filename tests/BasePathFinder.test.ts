@@ -30,9 +30,11 @@ describe('BasePathFinder', () => {
   ruleRegistry.register(
     ...movementCost(tileImprovementRegistry, transportRegistry),
     ...action(
+      undefined,
       cityRegistry,
       ruleRegistry,
       tileImprovementRegistry,
+      undefined,
       unitRegistry
     ),
     ...unitYield(unitImprovementRegistry, ruleRegistry),
@@ -42,8 +44,8 @@ describe('BasePathFinder', () => {
     ...unitYield(unitImprovementRegistry, ruleRegistry)
   );
 
-  it('should return the shortest path length for neighbouring tiles', () => {
-    const world = simpleWorldLoader('100Gd', 10, 10),
+  it('should return the shortest path length for neighbouring tiles', async () => {
+    const world = await simpleWorldLoader('100Gd', 10, 10),
       player = new Player(ruleRegistry),
       startTile = world.get(3, 3),
       targetTile = world.get(4, 4),
@@ -56,8 +58,8 @@ describe('BasePathFinder', () => {
     expect(path.length).to.equal(2);
   });
 
-  it('should find a valid path avoiding water', () => {
-    const world = simpleWorldLoader(
+  it('should find a valid path avoiding water', async () => {
+    const world = await simpleWorldLoader(
         '11O8G10OG2O5G2OGOG5OGOGOG2OG2OGOGOGOGOGOGOGOGOG3OGOGOG2O3G2OGOG7OG2O7GO',
         11,
         10
@@ -74,8 +76,8 @@ describe('BasePathFinder', () => {
     expect(path.length).to.equal(45);
   });
 
-  it('should correctly avoid enemy tiles and respect adjacency rules', () => {
-    const world = simpleWorldLoader('7O5GO5GO5GO5GO5G', 6, 6),
+  it('should correctly avoid enemy tiles and respect adjacency rules', async () => {
+    const world = await simpleWorldLoader('7O5GO5GO5GO5GO5G', 6, 6),
       player = new Player(ruleRegistry),
       enemy = new Player(ruleRegistry),
       startTile = world.get(1, 1),
@@ -97,8 +99,8 @@ describe('BasePathFinder', () => {
     cityRegistry.unregister(city);
   });
 
-  it('should correctly yield no path when applicable', () => {
-    const world = simpleWorldLoader('5OG9OG', 4, 4),
+  it('should correctly yield no path when applicable', async () => {
+    const world = await simpleWorldLoader('5OG9OG', 4, 4),
       player = new Player(ruleRegistry),
       startTile = world.get(1, 1),
       targetTile = world.get(3, 3),
@@ -110,8 +112,8 @@ describe('BasePathFinder', () => {
     expect(path).to.undefined;
   });
 
-  it('should prefer routes with a lower movement cost', () => {
-    const world = simpleWorldLoader(
+  it('should prefer routes with a lower movement cost', async () => {
+    const world = await simpleWorldLoader(
         '9O6G2OM5OGOM5OGOM5OGOM5OGOM5OG2OM4GO',
         8,
         8
