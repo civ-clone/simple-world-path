@@ -18,6 +18,7 @@
     "ts:compile": "tsc --build tsconfig.json"
   },
   "devDependencies": {
+    "@civ-clone/civ1-unit": "github:civ-clone/civ1-unit",
     "@civ-clone/core-city": "^0.1.0",
     "@civ-clone/core-player": "^0.1.0",
     "@civ-clone/core-rule": "^0.1.0",
@@ -34,7 +35,8 @@
     "typescript": "^4.0.3"
   },
   "dependencies": {
-    "@civ-clone/civ1-unit": "github:civ-clone/civ1-unit",
+    "@civ-clone/library-unit": "^0.1.0",
+    "@civ-clone/core-terrain": "^0.1.0",
     "@civ-clone/core-world": "^0.1.0",
     "@civ-clone/core-world-path": "^0.1.0"
   }

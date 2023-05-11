@@ -1,8 +1,15 @@
+import { Air, Land as LandUnit, Naval } from '@civ-clone/library-unit/Types';
 import { PathFinder, IPathFinder } from '@civ-clone/core-world-path/PathFinder';
+import {
+  RuleRegistry,
+  instance as ruleRegistryInstance,
+} from '@civ-clone/core-rule/RuleRegistry';
 import Action from '@civ-clone/core-unit/Action';
-import { Move } from '@civ-clone/civ1-unit/Actions';
+import { Move } from '@civ-clone/library-unit/Actions';
+import MovementCost from '@civ-clone/core-unit/Rules/MovementCost';
 import Path from '@civ-clone/core-world-path/Path';
 import Tile from '@civ-clone/core-world/Tile';
+import Unit from '@civ-clone/core-unit/Unit';
 
 export type Node = {
   tile: Tile;
@@ -18,7 +25,35 @@ interface IBasePathFinder extends IPathFinder {
 export class BasePathFinder extends PathFinder implements IBasePathFinder {
   #candidates: Path[] = [];
   #heap: Node[] = [this.createNode(this.start())];
+  #ruleRegistry: RuleRegistry;
   #seen: Tile[] = [this.start()];
+
+  constructor(
+    unit: Unit,
+    start: Tile,
+    end: Tile,
+    ruleRegistry: RuleRegistry = ruleRegistryInstance
+  ) {
+    super(unit, start, end);
+
+    this.#ruleRegistry = ruleRegistry;
+  }
+
+  private canMoveTo(tile: Tile): boolean {
+    if (this.unit() instanceof Air) {
+      return true;
+    }
+
+    if (this.unit() instanceof LandUnit) {
+      return tile.isLand();
+    }
+
+    if (this.unit() instanceof Naval) {
+      return tile.isWater();
+    }
+
+    return false;
+  }
 
   createNode(tile: Tile, parent: Node | null = null, cost: number = 0): Node {
     return {
@@ -56,24 +91,38 @@ export class BasePathFinder extends PathFinder implements IBasePathFinder {
 
       tile
         .getNeighbours()
+        .sort(
+          (neighbourA, neighbourB) =>
+            neighbourA.distanceFrom(tile) - neighbourB.distanceFrom(tile)
+        )
         // TODO: is this needed to make it fair?
-        // .filter((tile: Tile): boolean => this.unit().player().hasSeen(tile))
+        // .filter((tile: Tile): boolean => this.#playerWorldRegistry.getByPlayer(this.unit().player()).includes(tile))
         .forEach((target: Tile): void => {
-          const [move] = this.unit()
-            .actions(target, tile)
-            .filter(
-              (action: Action): boolean => action instanceof Move
-            ) as Move[];
-
-          if (move) {
-            const targetNode = this.createNode(
-              target,
-              currentNode,
-              move.movementCost()
-            );
+          if (this.canMoveTo(target)) {
+            const [movementCost] = this.#ruleRegistry
+                .process(
+                  MovementCost,
+                  this.unit(),
+                  new Move(
+                    tile,
+                    target,
+                    this.unit(),
+                    this.#ruleRegistry
+                  ) as Action
+                )
+                .sort((costA, costB) => costA - costB),
+              targetNode = this.createNode(target, currentNode, 1);
 
             if (target === this.end()) {
               this.#candidates.push(this.createPath(targetNode));
+
+              // if this path is "good enough" (<10% longer than direct), skip out here...
+              if (
+                this.#candidates[this.#candidates.length - 1].length <
+                this.start().distanceFrom(this.end()) * 1.1
+              ) {
+                this.#heap.splice(0, this.#heap.length);
+              }
 
               return;
             }
