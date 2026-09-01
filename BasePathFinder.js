@@ -1,18 +1,4 @@
 "use strict";
-var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, privateMap, value) {
-    if (!privateMap.has(receiver)) {
-        throw new TypeError("attempted to set private field on non-instance");
-    }
-    privateMap.set(receiver, value);
-    return value;
-};
-var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, privateMap) {
-    if (!privateMap.has(receiver)) {
-        throw new TypeError("attempted to get private field on non-instance");
-    }
-    return privateMap.get(receiver);
-};
-var _candidates, _heap, _ruleRegistry, _seen;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BasePathFinder = void 0;
 const Types_1 = require("@civ-clone/library-unit/Types");
@@ -24,11 +10,10 @@ const Path_1 = require("@civ-clone/core-world-path/Path");
 class BasePathFinder extends PathFinder_1.PathFinder {
     constructor(unit, start, end, ruleRegistry = RuleRegistry_1.instance) {
         super(unit, start, end);
-        _candidates.set(this, []);
-        _heap.set(this, [this.createNode(this.start())]);
-        _ruleRegistry.set(this, void 0);
-        _seen.set(this, [this.start()]);
-        __classPrivateFieldSet(this, _ruleRegistry, ruleRegistry);
+        this._candidates = [];
+        this._heap = [this.createNode(this.start())];
+        this._seen = [this.start()];
+        this._ruleRegistry = ruleRegistry;
     }
     canMoveTo(tile) {
         if (this.unit() instanceof Types_1.Air) {
@@ -63,8 +48,8 @@ class BasePathFinder extends PathFinder_1.PathFinder {
         return path;
     }
     generate() {
-        while (__classPrivateFieldGet(this, _heap).length) {
-            const currentNode = __classPrivateFieldGet(this, _heap).shift(), { tile } = currentNode;
+        while (this._heap.length) {
+            const currentNode = this._heap.shift(), { tile } = currentNode;
             tile
                 .getNeighbours()
                 .sort((neighbourA, neighbourB) => neighbourA.distanceFrom(tile) - neighbourB.distanceFrom(tile))
@@ -72,31 +57,31 @@ class BasePathFinder extends PathFinder_1.PathFinder {
                 // .filter((tile: Tile): boolean => this.#playerWorldRegistry.getByPlayer(this.unit().player()).includes(tile))
                 .forEach((target) => {
                 if (this.canMoveTo(target)) {
-                    const [movementCost] = __classPrivateFieldGet(this, _ruleRegistry).process(MovementCost_1.default, this.unit(), new Actions_1.Move(tile, target, this.unit(), __classPrivateFieldGet(this, _ruleRegistry)))
+                    const [movementCost] = this._ruleRegistry
+                        .process(MovementCost_1.default, this.unit(), new Actions_1.Move(tile, target, this.unit(), this._ruleRegistry))
                         .sort((costA, costB) => costA - costB), targetNode = this.createNode(target, currentNode, 1);
                     if (target === this.end()) {
-                        __classPrivateFieldGet(this, _candidates).push(this.createPath(targetNode));
+                        this._candidates.push(this.createPath(targetNode));
                         // if this path is "good enough" (<10% longer than direct), skip out here...
-                        if (__classPrivateFieldGet(this, _candidates)[__classPrivateFieldGet(this, _candidates).length - 1].length <
+                        if (this._candidates[this._candidates.length - 1].length <
                             this.start().distanceFrom(this.end()) * 1.1) {
-                            __classPrivateFieldGet(this, _heap).splice(0, __classPrivateFieldGet(this, _heap).length);
+                            this._heap.splice(0, this._heap.length);
                         }
                         return;
                     }
-                    if (!__classPrivateFieldGet(this, _heap).some((node) => node.tile === target) &&
-                        !__classPrivateFieldGet(this, _seen).includes(target)) {
-                        __classPrivateFieldGet(this, _heap).push(targetNode);
-                        __classPrivateFieldGet(this, _seen).push(target);
+                    if (!this._heap.some((node) => node.tile === target) &&
+                        !this._seen.includes(target)) {
+                        this._heap.push(targetNode);
+                        this._seen.push(target);
                     }
                 }
             });
         }
         // TODO: This might get REALLY expensive...
-        const [cheapest] = __classPrivateFieldGet(this, _candidates).sort((a, b) => a.movementCost() - b.movementCost());
+        const [cheapest] = this._candidates.sort((a, b) => a.movementCost() - b.movementCost());
         return cheapest;
     }
 }
 exports.BasePathFinder = BasePathFinder;
-_candidates = new WeakMap(), _heap = new WeakMap(), _ruleRegistry = new WeakMap(), _seen = new WeakMap();
 exports.default = BasePathFinder;
 //# sourceMappingURL=BasePathFinder.js.map

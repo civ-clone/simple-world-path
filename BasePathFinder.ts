@@ -23,10 +23,10 @@ interface IBasePathFinder extends IPathFinder {
 }
 
 export class BasePathFinder extends PathFinder implements IBasePathFinder {
-  #candidates: Path[] = [];
-  #heap: Node[] = [this.createNode(this.start())];
-  #ruleRegistry: RuleRegistry;
-  #seen: Tile[] = [this.start()];
+  private _candidates: Path[] = [];
+  private _heap: Node[] = [this.createNode(this.start())];
+  private _ruleRegistry: RuleRegistry;
+  private _seen: Tile[] = [this.start()];
 
   constructor(
     unit: Unit,
@@ -36,7 +36,7 @@ export class BasePathFinder extends PathFinder implements IBasePathFinder {
   ) {
     super(unit, start, end);
 
-    this.#ruleRegistry = ruleRegistry;
+    this._ruleRegistry = ruleRegistry;
   }
 
   private canMoveTo(tile: Tile): boolean {
@@ -85,8 +85,8 @@ export class BasePathFinder extends PathFinder implements IBasePathFinder {
   }
 
   generate(): Path {
-    while (this.#heap.length) {
-      const currentNode = this.#heap.shift(),
+    while (this._heap.length) {
+      const currentNode = this._heap.shift(),
         { tile } = currentNode as Node;
 
       tile
@@ -99,7 +99,7 @@ export class BasePathFinder extends PathFinder implements IBasePathFinder {
         // .filter((tile: Tile): boolean => this.#playerWorldRegistry.getByPlayer(this.unit().player()).includes(tile))
         .forEach((target: Tile): void => {
           if (this.canMoveTo(target)) {
-            const [movementCost] = this.#ruleRegistry
+            const [movementCost] = this._ruleRegistry
                 .process(
                   MovementCost,
                   this.unit(),
@@ -107,39 +107,39 @@ export class BasePathFinder extends PathFinder implements IBasePathFinder {
                     tile,
                     target,
                     this.unit(),
-                    this.#ruleRegistry
+                    this._ruleRegistry
                   ) as Action
                 )
                 .sort((costA, costB) => costA - costB),
               targetNode = this.createNode(target, currentNode, 1);
 
             if (target === this.end()) {
-              this.#candidates.push(this.createPath(targetNode));
+              this._candidates.push(this.createPath(targetNode));
 
               // if this path is "good enough" (<10% longer than direct), skip out here...
               if (
-                this.#candidates[this.#candidates.length - 1].length <
+                this._candidates[this._candidates.length - 1].length <
                 this.start().distanceFrom(this.end()) * 1.1
               ) {
-                this.#heap.splice(0, this.#heap.length);
+                this._heap.splice(0, this._heap.length);
               }
 
               return;
             }
 
             if (
-              !this.#heap.some((node: Node): boolean => node.tile === target) &&
-              !this.#seen.includes(target)
+              !this._heap.some((node: Node): boolean => node.tile === target) &&
+              !this._seen.includes(target)
             ) {
-              this.#heap.push(targetNode);
-              this.#seen.push(target);
+              this._heap.push(targetNode);
+              this._seen.push(target);
             }
           }
         });
     }
 
     // TODO: This might get REALLY expensive...
-    const [cheapest] = this.#candidates.sort(
+    const [cheapest] = this._candidates.sort(
       (a: Path, b: Path): number => a.movementCost() - b.movementCost()
     );
 
