@@ -15,6 +15,10 @@ export type Node = {
   tile: Tile;
   parent: Node | null;
   cost: number;
+  // Totals from the start, so the open set can be ordered without walking
+  // `parent` back each time.
+  totalCost: number;
+  steps: number;
 };
 
 interface IBasePathFinder extends IPathFinder {
@@ -22,11 +26,80 @@ interface IBasePathFinder extends IPathFinder {
   createPath(node: Node): Path;
 }
 
+/**
+ * Cheaper first, then fewer steps: a railroad costs nothing, so without the
+ * second key every route along one would tie and any of them could come out.
+ */
+const isBefore = (a: Node, b: Node): boolean =>
+  a.totalCost < b.totalCost ||
+  (a.totalCost === b.totalCost && a.steps < b.steps);
+
+/** A binary min-heap of nodes, ordered by `isBefore`. */
+class OpenSet {
+  private _nodes: Node[] = [];
+
+  get length(): number {
+    return this._nodes.length;
+  }
+
+  pop(): Node {
+    const nodes = this._nodes,
+      top = nodes[0],
+      last = nodes.pop() as Node;
+
+    if (nodes.length) {
+      nodes[0] = last;
+
+      let index = 0;
+
+      for (;;) {
+        const left = index * 2 + 1,
+          right = left + 1;
+
+        let smallest = index;
+
+        if (left < nodes.length && isBefore(nodes[left], nodes[smallest])) {
+          smallest = left;
+        }
+
+        if (right < nodes.length && isBefore(nodes[right], nodes[smallest])) {
+          smallest = right;
+        }
+
+        if (smallest === index) {
+          break;
+        }
+
+        [nodes[index], nodes[smallest]] = [nodes[smallest], nodes[index]];
+        index = smallest;
+      }
+    }
+
+    return top;
+  }
+
+  push(node: Node): void {
+    const nodes = this._nodes;
+
+    nodes.push(node);
+
+    let index = nodes.length - 1;
+
+    while (index > 0) {
+      const parent = (index - 1) >> 1;
+
+      if (!isBefore(nodes[index], nodes[parent])) {
+        break;
+      }
+
+      [nodes[index], nodes[parent]] = [nodes[parent], nodes[index]];
+      index = parent;
+    }
+  }
+}
+
 export class BasePathFinder extends PathFinder implements IBasePathFinder {
-  private _candidates: Path[] = [];
-  private _heap: Node[] = [this.createNode(this.start())];
   private _ruleRegistry: RuleRegistry;
-  private _seen: Tile[] = [this.start()];
 
   constructor(
     unit: Unit,
@@ -60,6 +133,8 @@ export class BasePathFinder extends PathFinder implements IBasePathFinder {
       tile,
       parent,
       cost,
+      totalCost: (parent?.totalCost ?? 0) + cost,
+      steps: parent === null ? 0 : parent.steps + 1,
     };
   }
 
@@ -84,66 +159,80 @@ export class BasePathFinder extends PathFinder implements IBasePathFinder {
     return path;
   }
 
-  generate(): Path {
-    while (this._heap.length) {
-      const currentNode = this._heap.shift(),
-        { tile } = currentNode as Node;
+  /**
+   * What stepping from `from` to `to` costs, as the `MovementCost` rules say,
+   * but never more than `movement` (a whole turn's moves): a unit short of the
+   * moves a tile needs spends the rest of its turn entering it anyway, so to a
+   * Warrior hills take a turn, just as grassland does.
+   */
+  private stepCost(from: Tile, to: Tile, movement: number): number {
+    const [cost] = this._ruleRegistry
+      .process(
+        MovementCost,
+        this.unit(),
+        new Move(from, to, this.unit(), this._ruleRegistry) as Action
+      )
+      .sort((costA: number, costB: number): number => costA - costB);
 
-      tile
-        .getNeighbours()
-        .sort(
-          (neighbourA, neighbourB) =>
-            neighbourA.distanceFrom(tile) - neighbourB.distanceFrom(tile)
-        )
-        // TODO: is this needed to make it fair?
-        // .filter((tile: Tile): boolean => this.#playerWorldRegistry.getByPlayer(this.unit().player()).includes(tile))
-        .forEach((target: Tile): void => {
-          if (this.canMoveTo(target)) {
-            const [movementCost] = this._ruleRegistry
-                .process(
-                  MovementCost,
-                  this.unit(),
-                  new Move(
-                    tile,
-                    target,
-                    this.unit(),
-                    this._ruleRegistry
-                  ) as Action
-                )
-                .sort((costA, costB) => costA - costB),
-              targetNode = this.createNode(target, currentNode, 1);
-
-            if (target === this.end()) {
-              this._candidates.push(this.createPath(targetNode));
-
-              // if this path is "good enough" (<10% longer than direct), skip out here...
-              if (
-                this._candidates[this._candidates.length - 1].length <
-                this.start().distanceFrom(this.end()) * 1.1
-              ) {
-                this._heap.splice(0, this._heap.length);
-              }
-
-              return;
-            }
-
-            if (
-              !this._heap.some((node: Node): boolean => node.tile === target) &&
-              !this._seen.includes(target)
-            ) {
-              this._heap.push(targetNode);
-              this._seen.push(target);
-            }
-          }
-        });
+    if (cost === undefined) {
+      return 1;
     }
 
-    // TODO: This might get REALLY expensive...
-    const [cheapest] = this._candidates.sort(
-      (a: Path, b: Path): number => a.movementCost() - b.movementCost()
-    );
+    return movement > 0 && cost > movement ? movement : cost;
+  }
 
-    return cheapest;
+  /**
+   * The cheapest route by movement cost (uniform-cost search), taking the
+   * fewest steps among routes that cost the same, or `undefined` if there is
+   * none. There is no distance heuristic: a railroad costs nothing, so no
+   * distance can be said to cost at least anything.
+   */
+  generate(): Path {
+    const end = this.end(),
+      movement = this.unit().movement().value(),
+      open = new OpenSet(),
+      best = new Map<Tile, Node>(),
+      done = new Set<Tile>(),
+      startNode = this.createNode(this.start());
+
+    open.push(startNode);
+    best.set(startNode.tile, startNode);
+
+    while (open.length) {
+      const current = open.pop();
+
+      // A tile can be queued again when a cheaper way to it is found; only the
+      // first of its entries to come out counts.
+      if (done.has(current.tile)) {
+        continue;
+      }
+
+      if (current.tile === end) {
+        return this.createPath(current);
+      }
+
+      done.add(current.tile);
+
+      current.tile.getNeighbours().forEach((target: Tile): void => {
+        if (done.has(target) || !this.canMoveTo(target)) {
+          return;
+        }
+
+        const candidate = this.createNode(
+            target,
+            current,
+            this.stepCost(current.tile, target, movement)
+          ),
+          known = best.get(target);
+
+        if (known === undefined || isBefore(candidate, known)) {
+          best.set(target, candidate);
+          open.push(candidate);
+        }
+      });
+    }
+
+    return undefined as unknown as Path;
   }
 }
 
