@@ -183,6 +183,48 @@ describe('BasePathFinder', () => {
     expect(coordinatesOf(route(world, Tank))).to.deep.equal(direct);
   });
 
+  it('should take the fewest steps when road costs add up to the same total', async () => {
+    // From (1, 1) to (3, 1): two steps across grassland (cost 2), or six steps
+    // round a loop of road (6 × 1/3, also 2). In floating point those six
+    // thirds sum to 1.9999999999999998, which must not win on that alone.
+    //
+    //   OOOOO
+    //   OGGGO
+    //   OGOGO
+    //   OGOGO
+    //   OGGGO
+    //   OOOOO
+    const world = await simpleWorldLoader('6O3G2OGOG2OGOG2O3G6O', 6, 5),
+      loop: [number, number][] = [
+        [1, 1],
+        [1, 2],
+        [1, 3],
+        [2, 4],
+        [3, 3],
+        [3, 2],
+        [3, 1],
+      ];
+
+    build(world, Road, loop);
+
+    const player = new Player(ruleRegistry),
+      start = world.get(1, 1),
+      unit = new Tank(null, player, start, ruleRegistry),
+      path = new BasePathFinder(
+        unit,
+        start,
+        world.get(3, 1),
+        ruleRegistry
+      ).generate();
+
+    expect(coordinatesOf(path)).to.deep.equal([
+      [1, 1],
+      [2, 1],
+      [3, 1],
+    ]);
+    expect(path.movementCost()).to.equal(2);
+  });
+
   it('should cross hills directly with a unit that has one move per turn', async () => {
     // Entering hills takes a one-move unit's whole turn, just as grassland does.
     const world = await twoRoutes('5H'),
