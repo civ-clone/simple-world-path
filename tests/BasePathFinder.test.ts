@@ -2,6 +2,9 @@ import RuleRegistry from '@civ-clone/core-rule/RuleRegistry';
 import BasePathFinder from '../BasePathFinder';
 import City from '@civ-clone/core-city/City';
 import CityRegistry from '@civ-clone/core-city/CityRegistry';
+import Criterion from '@civ-clone/core-rule/Criterion';
+import Effect from '@civ-clone/core-rule/Effect';
+import ExpectedMovementCost from '@civ-clone/core-world-path/Rules/ExpectedMovementCost';
 import Path from '@civ-clone/core-world-path/Path';
 import Player from '@civ-clone/core-player/Player';
 import TileImprovementRegistry from '@civ-clone/core-tile-improvement/TileImprovementRegistry';
@@ -11,6 +14,7 @@ import UnitRegistry from '@civ-clone/core-unit/UnitRegistry';
 import { Railroad, Road } from '@civ-clone/library-world/TileImprovements';
 import { Tank, Warrior } from '@civ-clone/library-unit/Units';
 import Tile from '@civ-clone/core-world/Tile';
+import Unit from '@civ-clone/core-unit/Unit';
 import World from '@civ-clone/core-world/World';
 import action from '@civ-clone/civ1-unit/Rules/Unit/action';
 import created from '@civ-clone/civ1-unit/Rules/Unit/created';
@@ -194,5 +198,43 @@ describe('BasePathFinder', () => {
 
     expect(coordinatesOf(path)).to.deep.equal(detour);
     expect(path.movementCost()).to.equal(8);
+  });
+  it('should ask what a step the unit cannot afford is worth, and route by the answer', async () => {
+    // Priced as civ1-unit does: a Warrior gets into mountains 2 times in 3, so
+    // each is worth 1.5, and five of them cost more than the eight-step detour.
+    const asked: [number, number][] = [],
+      rule = new ExpectedMovementCost(
+        new Criterion((): boolean => true),
+        new Effect(
+          (unit: Unit, movementCost: number, movement: number): number => {
+            asked.push([movementCost, movement]);
+
+            return Math.max(movement, movementCost * 0.5);
+          }
+        )
+      );
+
+    ruleRegistry.register(rule);
+
+    try {
+      const world = await twoRoutes('5M'),
+        path = route(world, Warrior);
+
+      expect(coordinatesOf(path)).to.deep.equal(detour);
+      expect(path.movementCost()).to.equal(8);
+      // Only for the mountains: grassland is within a Warrior's turn.
+      expect(asked.length).to.be.greaterThan(0);
+      asked.forEach((call) => expect(call).to.deep.equal([3, 1]));
+    } finally {
+      ruleRegistry.unregister(rule);
+    }
+  });
+
+  it('should count a step the unit cannot afford as one turn when no rule prices it', async () => {
+    const world = await twoRoutes('5M'),
+      path = route(world, Warrior);
+
+    expect(coordinatesOf(path)).to.deep.equal(direct);
+    expect(path.movementCost()).to.equal(6);
   });
 });
