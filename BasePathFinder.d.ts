@@ -8,6 +8,7 @@ export type Node = {
   parent: Node | null;
   cost: number;
   totalCost: number;
+  costKey: number;
   steps: number;
 };
 interface IBasePathFinder extends IPathFinder {
