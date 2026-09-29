@@ -41,7 +41,7 @@
     "@civ-clone/core-terrain": "^0.1.0",
     "@civ-clone/core-unit": "^0.1.0",
     "@civ-clone/core-world": "^0.1.0",
-    "@civ-clone/core-world-path": "^0.1.0",
+    "@civ-clone/core-world-path": "^0.1.2",
     "@civ-clone/library-unit": "^0.1.0"
   }
 }

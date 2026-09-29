@@ -5,6 +5,7 @@ const Types_1 = require("@civ-clone/library-unit/Types");
 const PathFinder_1 = require("@civ-clone/core-world-path/PathFinder");
 const RuleRegistry_1 = require("@civ-clone/core-rule/RuleRegistry");
 const Actions_1 = require("@civ-clone/library-unit/Actions");
+const ExpectedMovementCost_1 = require("@civ-clone/core-world-path/Rules/ExpectedMovementCost");
 const MovementCost_1 = require("@civ-clone/core-unit/Rules/MovementCost");
 const Path_1 = require("@civ-clone/core-world-path/Path");
 /**
@@ -99,10 +100,12 @@ class BasePathFinder extends PathFinder_1.PathFinder {
         return path;
     }
     /**
-     * What stepping from `from` to `to` costs, as the `MovementCost` rules say,
-     * but never more than `movement` (a whole turn's moves): a unit short of the
-     * moves a tile needs spends the rest of its turn entering it anyway, so to a
-     * Warrior hills take a turn, just as grassland does.
+     * What stepping from `from` to `to` is worth to a route. That's what the
+     * `MovementCost` rules say, unless it's more than `movement` (a whole turn's
+     * moves). Then entering the tile can take more than one attempt, and the
+     * `ExpectedMovementCost` rules say what it's worth on average. With no such
+     * rule it costs a turn, because a unit short of the moves spends the rest of
+     * its turn trying.
      */
     stepCost(from, to, movement) {
         const [cost] = this._ruleRegistry
@@ -111,7 +114,11 @@ class BasePathFinder extends PathFinder_1.PathFinder {
         if (cost === undefined) {
             return 1;
         }
-        return movement > 0 && cost > movement ? movement : cost;
+        if (movement <= 0 || cost <= movement) {
+            return cost;
+        }
+        const [expected] = this._ruleRegistry.process(ExpectedMovementCost_1.default, this.unit(), cost, movement);
+        return expected !== null && expected !== void 0 ? expected : movement;
     }
     /**
      * The cheapest route by movement cost (uniform-cost search), taking the

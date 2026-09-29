@@ -24,10 +24,12 @@ export declare class BasePathFinder
   createNode(tile: Tile, parent?: Node | null, cost?: number): Node;
   createPath(node: Node): Path;
   /**
-   * What stepping from `from` to `to` costs, as the `MovementCost` rules say,
-   * but never more than `movement` (a whole turn's moves): a unit short of the
-   * moves a tile needs spends the rest of its turn entering it anyway, so to a
-   * Warrior hills take a turn, just as grassland does.
+   * What stepping from `from` to `to` is worth to a route. That's what the
+   * `MovementCost` rules say, unless it's more than `movement` (a whole turn's
+   * moves). Then entering the tile can take more than one attempt, and the
+   * `ExpectedMovementCost` rules say what it's worth on average. With no such
+   * rule it costs a turn, because a unit short of the moves spends the rest of
+   * its turn trying.
    */
   private stepCost;
   /**
