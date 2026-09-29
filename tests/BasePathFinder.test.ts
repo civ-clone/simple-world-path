@@ -8,7 +8,10 @@ import TileImprovementRegistry from '@civ-clone/core-tile-improvement/TileImprov
 import TransportRegistry from '@civ-clone/core-unit-transport/TransportRegistry';
 import UnitImprovementRegistry from '@civ-clone/core-unit-improvement/UnitImprovementRegistry';
 import UnitRegistry from '@civ-clone/core-unit/UnitRegistry';
-import { Warrior } from '@civ-clone/library-unit/Units';
+import { Railroad, Road } from '@civ-clone/library-world/TileImprovements';
+import { Tank, Warrior } from '@civ-clone/library-unit/Units';
+import Tile from '@civ-clone/core-world/Tile';
+import World from '@civ-clone/core-world/World';
 import action from '@civ-clone/civ1-unit/Rules/Unit/action';
 import created from '@civ-clone/civ1-unit/Rules/Unit/created';
 import { expect } from 'chai';
@@ -40,8 +43,7 @@ describe('BasePathFinder', () => {
     ...unitYield(unitImprovementRegistry, ruleRegistry),
     ...moved(transportRegistry, ruleRegistry),
     ...validateMove(),
-    ...created(unitRegistry),
-    ...unitYield(unitImprovementRegistry, ruleRegistry)
+    ...created(unitRegistry)
   );
 
   it('should return the shortest path length for neighbouring tiles', async () => {
@@ -89,38 +91,108 @@ describe('BasePathFinder', () => {
     expect(path).to.undefined;
   });
 
-  // it('should prefer routes with a lower movement cost', async () => {
-  //   const world = await simpleWorldLoader(
-  //       '9O6G2OM5OGOM5OGOM5OGOM5OGOM5OG2OM4GO',
-  //       8,
-  //       8
-  //     ),
-  //     player = new Player(ruleRegistry),
-  //     startTile = world.get(1, 1),
-  //     targetTile = world.get(2, 7),
-  //     unit = new Warrior(null, player, startTile, ruleRegistry);
+  // Two routes from (1, 1) to (7, 1), with ocean around and between them:
   //
-  //   const pathFinder = new BasePathFinder(unit, startTile, targetTile),
-  //     path = pathFinder.generate();
-  //
-  //   expect(path instanceof Path).to.true;
-  //   expect([
-  //     [1, 1],
-  //     [2, 1],
-  //     [3, 1],
-  //     [4, 1],
-  //     [5, 1],
-  //     [6, 1],
-  //     [7, 2],
-  //     [7, 3],
-  //     [7, 4],
-  //     [7, 5],
-  //     [7, 6],
-  //     [6, 7],
-  //     [5, 7],
-  //     [4, 7],
-  //     [3, 7],
-  //     [2, 7],
-  //   ]).to.deep.equal(path.map((tile) => [tile.x(), tile.y()]));
-  // });
+  //   OOOOOOOOO
+  //   OG?????GO   the direct route: six steps across `row1`
+  //   OGOOOOOGO
+  //   OGGGGGGGO   the detour: eight steps, (1, 2) and (7, 2) join it on
+  //   OOOOOOOOO
+  const twoRoutes = (row1: string): Promise<World> =>
+      simpleWorldLoader(`10OG${row1}G2OG5OG2O7G10O`, 5, 9),
+    detour: [number, number][] = [
+      [1, 1],
+      [1, 2],
+      [2, 3],
+      [3, 3],
+      [4, 3],
+      [5, 3],
+      [6, 3],
+      [7, 2],
+      [7, 1],
+    ],
+    direct: [number, number][] = [
+      [1, 1],
+      [2, 1],
+      [3, 1],
+      [4, 1],
+      [5, 1],
+      [6, 1],
+      [7, 1],
+    ],
+    build = (
+      world: World,
+      Improvement: typeof Road | typeof Railroad,
+      coordinates: [number, number][]
+    ): void =>
+      coordinates.forEach(([x, y]) =>
+        tileImprovementRegistry.register(
+          new Improvement(world.get(x, y), ruleRegistry)
+        )
+      ),
+    route = (
+      world: World,
+      UnitType: typeof Warrior | typeof Tank = Warrior
+    ): Path => {
+      const player = new Player(ruleRegistry),
+        start = world.get(1, 1),
+        unit = new UnitType(null, player, start, ruleRegistry);
+
+      return new BasePathFinder(
+        unit,
+        start,
+        world.get(7, 1),
+        ruleRegistry
+      ).generate();
+    },
+    coordinatesOf = (path: Path): [number, number][] =>
+      path.map((tile: Tile): [number, number] => [tile.x(), tile.y()]);
+
+  it('should take a longer road over a shorter route across mountains', async () => {
+    const world = await twoRoutes('5M');
+
+    build(world, Road, detour);
+
+    const path = route(world, Tank);
+
+    expect(coordinatesOf(path)).to.deep.equal(detour);
+    expect(path.movementCost()).to.be.closeTo(8 / 3, 1e-9);
+  });
+
+  it('should take a longer railroad over a shorter road', async () => {
+    const world = await twoRoutes('5G');
+
+    build(world, Road, direct);
+    build(world, Railroad, detour);
+
+    const path = route(world, Tank);
+
+    expect(coordinatesOf(path)).to.deep.equal(detour);
+    expect(path.movementCost()).to.equal(0);
+  });
+
+  it('should take the fewest steps when routes cost the same', async () => {
+    const world = await twoRoutes('5G');
+
+    build(world, Railroad, [...direct, ...detour]);
+
+    expect(coordinatesOf(route(world, Tank))).to.deep.equal(direct);
+  });
+
+  it('should cross hills directly with a unit that has one move per turn', async () => {
+    // Entering hills takes a one-move unit's whole turn, just as grassland does.
+    const world = await twoRoutes('5H'),
+      path = route(world, Warrior);
+
+    expect(coordinatesOf(path)).to.deep.equal(direct);
+    expect(path.movementCost()).to.equal(6);
+  });
+
+  it('should go around hills with a unit that has three moves per turn', async () => {
+    const world = await twoRoutes('5H'),
+      path = route(world, Tank);
+
+    expect(coordinatesOf(path)).to.deep.equal(detour);
+    expect(path.movementCost()).to.equal(8);
+  });
 });
