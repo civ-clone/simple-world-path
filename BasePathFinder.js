@@ -9,18 +9,19 @@ const ExpectedMovementCost_1 = require("@civ-clone/core-world-path/Rules/Expecte
 const MovementCost_1 = require("@civ-clone/core-unit/Rules/MovementCost");
 const Path_1 = require("@civ-clone/core-world-path/Path");
 /**
- * Costs closer than this are the same cost. A road step costs 1/3, and six of
- * them sum to 1.9999999999999998 in floating point, which would otherwise beat
- * two steps costing 1 each for no reason but rounding. It's far below the
- * smallest difference a real step cost makes.
+ * A total cost as a whole number of millionths, which is what routes are
+ * compared by. A road step costs 1/3, and six of them sum to
+ * 1.9999999999999998 in floating point, which would otherwise beat two steps
+ * costing 1 each for no reason but rounding. Rounding to an integer key, rather
+ * than comparing with a tolerance, keeps the ordering transitive, which the
+ * heap relies on.
  */
-const costTolerance = 1e-9;
+const toCostKey = (totalCost) => Math.round(totalCost * 1e6);
 /**
  * Cheaper first, then fewer steps: a railroad costs nothing, so without the
  * second key every route along one would tie and any of them could come out.
  */
-const isBefore = (a, b) => a.totalCost < b.totalCost - costTolerance ||
-    (a.totalCost <= b.totalCost + costTolerance && a.steps < b.steps);
+const isBefore = (a, b) => a.costKey < b.costKey || (a.costKey === b.costKey && a.steps < b.steps);
 /** A binary min-heap of nodes, ordered by `isBefore`. */
 class OpenSet {
     constructor() {
@@ -85,11 +86,13 @@ class BasePathFinder extends PathFinder_1.PathFinder {
     }
     createNode(tile, parent = null, cost = 0) {
         var _a;
+        const totalCost = ((_a = parent === null || parent === void 0 ? void 0 : parent.totalCost) !== null && _a !== void 0 ? _a : 0) + cost;
         return {
             tile,
             parent,
             cost,
-            totalCost: ((_a = parent === null || parent === void 0 ? void 0 : parent.totalCost) !== null && _a !== void 0 ? _a : 0) + cost,
+            totalCost,
+            costKey: toCostKey(totalCost),
             steps: parent === null ? 0 : parent.steps + 1,
         };
     }
