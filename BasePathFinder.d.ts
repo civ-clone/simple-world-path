@@ -1,5 +1,7 @@
+import { CityRegistry } from '@civ-clone/core-city/CityRegistry';
 import { PathFinder, IPathFinder } from '@civ-clone/core-world-path/PathFinder';
 import { RuleRegistry } from '@civ-clone/core-rule/RuleRegistry';
+import { UnitRegistry } from '@civ-clone/core-unit/UnitRegistry';
 import Path from '@civ-clone/core-world-path/Path';
 import Tile from '@civ-clone/core-world/Tile';
 import Unit from '@civ-clone/core-unit/Unit';
@@ -19,8 +21,25 @@ export declare class BasePathFinder
   extends PathFinder
   implements IBasePathFinder
 {
+  private _cityRegistry;
   private _ruleRegistry;
-  constructor(unit: Unit, start: Tile, end: Tile, ruleRegistry?: RuleRegistry);
+  private _unitRegistry;
+  constructor(
+    unit: Unit,
+    start: Tile,
+    end: Tile,
+    ruleRegistry?: RuleRegistry,
+    cityRegistry?: CityRegistry,
+    unitRegistry?: UnitRegistry
+  );
+  /**
+   * Whether another player's unit or city is on `tile`. A route can't pass
+   * through one: there is no `Move` onto it, so a journey along the route
+   * would stop there (an aircraft sent home past a rival city stopped short and
+   * ran out of fuel, civ-clone/web-renderer#357). The destination is exempt,
+   * so a route can still lead to something to attack, trade with or visit.
+   */
+  private isHeldByAnotherPlayer;
   private canMoveTo;
   createNode(tile: Tile, parent?: Node | null, cost?: number): Node;
   createPath(node: Node): Path;

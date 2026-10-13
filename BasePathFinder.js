@@ -2,8 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BasePathFinder = void 0;
 const Types_1 = require("@civ-clone/library-unit/Types");
+const CityRegistry_1 = require("@civ-clone/core-city/CityRegistry");
 const PathFinder_1 = require("@civ-clone/core-world-path/PathFinder");
 const RuleRegistry_1 = require("@civ-clone/core-rule/RuleRegistry");
+const UnitRegistry_1 = require("@civ-clone/core-unit/UnitRegistry");
 const Actions_1 = require("@civ-clone/library-unit/Actions");
 const ExpectedMovementCost_1 = require("@civ-clone/core-world-path/Rules/ExpectedMovementCost");
 const MovementCost_1 = require("@civ-clone/core-unit/Rules/MovementCost");
@@ -68,11 +70,32 @@ class OpenSet {
     }
 }
 class BasePathFinder extends PathFinder_1.PathFinder {
-    constructor(unit, start, end, ruleRegistry = RuleRegistry_1.instance) {
+    constructor(unit, start, end, ruleRegistry = RuleRegistry_1.instance, cityRegistry = CityRegistry_1.instance, unitRegistry = UnitRegistry_1.instance) {
         super(unit, start, end);
+        this._cityRegistry = cityRegistry;
         this._ruleRegistry = ruleRegistry;
+        this._unitRegistry = unitRegistry;
+    }
+    /**
+     * Whether another player's unit or city is on `tile`. A route can't pass
+     * through one: there is no `Move` onto it, so a journey along the route
+     * would stop there (an aircraft sent home past a rival city stopped short and
+     * ran out of fuel, civ-clone/web-renderer#357). The destination is exempt,
+     * so a route can still lead to something to attack, trade with or visit.
+     */
+    isHeldByAnotherPlayer(tile) {
+        const player = this.unit().player(), city = this._cityRegistry.getByTile(tile);
+        if (city !== null && city.player() !== player) {
+            return true;
+        }
+        return this._unitRegistry
+            .getByTile(tile)
+            .some((tileUnit) => tileUnit.player() !== player);
     }
     canMoveTo(tile) {
+        if (tile !== this.end() && this.isHeldByAnotherPlayer(tile)) {
+            return false;
+        }
         if (this.unit() instanceof Types_1.Air) {
             return true;
         }
