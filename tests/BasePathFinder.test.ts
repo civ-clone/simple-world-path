@@ -12,7 +12,7 @@ import TransportRegistry from '@civ-clone/core-unit-transport/TransportRegistry'
 import UnitImprovementRegistry from '@civ-clone/core-unit-improvement/UnitImprovementRegistry';
 import UnitRegistry from '@civ-clone/core-unit/UnitRegistry';
 import { Railroad, Road } from '@civ-clone/library-world/TileImprovements';
-import { Tank, Warrior } from '@civ-clone/library-unit/Units';
+import { Bomber, Tank, Warrior } from '@civ-clone/library-unit/Units';
 import Tile from '@civ-clone/core-world/Tile';
 import Unit from '@civ-clone/core-unit/Unit';
 import World from '@civ-clone/core-world/World';
@@ -336,6 +336,48 @@ describe('BasePathFinder', () => {
       );
 
       expect(path).to.deep.equal(detour);
+    });
+
+    // Aircraft can fly over any terrain, so they skip the terrain check: the check for other players has to apply to
+    // them too, as it was a Bomber that crashed. From (2, 1) to (6, 1) the straight line, through (4, 1), is the
+    // shortest way (the world wraps, but the other way round is longer).
+    it('should fly an aircraft around another player’s city', async () => {
+      const world = await twoRoutes('5G'),
+        cities = new CityRegistry(),
+        start = world.get(2, 1),
+        bomber = new Bomber(
+          null,
+          new Player(ruleRegistry),
+          start,
+          ruleRegistry
+        ),
+        route = (): [number, number][] =>
+          coordinatesOf(
+            new BasePathFinder(
+              bomber,
+              start,
+              world.get(6, 1),
+              ruleRegistry,
+              cities,
+              new UnitRegistry()
+            ).generate()
+          );
+
+      expect(route()).to.deep.include([4, 1]);
+
+      cities.register(
+        new City(
+          new Player(ruleRegistry),
+          world.get(4, 1),
+          'Rival',
+          ruleRegistry
+        )
+      );
+
+      const path = route();
+
+      expect(path).to.not.deep.include([4, 1]);
+      expect(path[path.length - 1]).to.deep.equal([6, 1]);
     });
 
     it('should go through its own player’s units', async () => {
