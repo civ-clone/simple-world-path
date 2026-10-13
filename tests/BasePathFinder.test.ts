@@ -279,4 +279,88 @@ describe('BasePathFinder', () => {
     expect(coordinatesOf(path)).to.deep.equal(direct);
     expect(path.movementCost()).to.equal(6);
   });
+
+  describe('another player on the way', () => {
+    // A route through another player's unit or city stops there, because there is no `Move` onto it, so it goes around
+    // them (civ-clone/web-renderer#357).
+    const routeWith = async (
+      place: (world: World, units: UnitRegistry, cities: CityRegistry) => void
+    ): Promise<[number, number][]> => {
+      const world = await twoRoutes('5G'),
+        cities = new CityRegistry(),
+        units = new UnitRegistry(),
+        start = world.get(1, 1),
+        unit = new Warrior(null, new Player(ruleRegistry), start, ruleRegistry);
+
+      units.register(unit);
+
+      place(world, units, cities);
+
+      return coordinatesOf(
+        new BasePathFinder(
+          unit,
+          start,
+          world.get(7, 1),
+          ruleRegistry,
+          cities,
+          units
+        ).generate()
+      );
+    };
+
+    it('should go around another player’s unit', async () => {
+      const path = await routeWith((world, units) =>
+        units.register(
+          new Warrior(
+            null,
+            new Player(ruleRegistry),
+            world.get(4, 1),
+            ruleRegistry
+          )
+        )
+      );
+
+      expect(path).to.deep.equal(detour);
+    });
+
+    it('should go around another player’s city', async () => {
+      const path = await routeWith((world, units, cities) =>
+        cities.register(
+          new City(
+            new Player(ruleRegistry),
+            world.get(4, 1),
+            'Rival',
+            ruleRegistry
+          )
+        )
+      );
+
+      expect(path).to.deep.equal(detour);
+    });
+
+    it('should go through its own player’s units', async () => {
+      const path = await routeWith((world, units) => {
+        const [unit] = units.entries();
+
+        units.register(
+          new Warrior(null, unit.player(), world.get(4, 1), ruleRegistry)
+        );
+      });
+
+      expect(path).to.deep.equal(direct);
+    });
+
+    it('should still lead to another player’s unit or city at the destination', async () => {
+      const path = await routeWith((world, units, cities) => {
+        const rival = new Player(ruleRegistry);
+
+        cities.register(
+          new City(rival, world.get(7, 1), 'Rival', ruleRegistry)
+        );
+        units.register(new Warrior(null, rival, world.get(7, 1), ruleRegistry));
+      });
+
+      expect(path).to.deep.equal(direct);
+    });
+  });
 });

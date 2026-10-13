@@ -1,9 +1,17 @@
 import { Air, Land as LandUnit, Naval } from '@civ-clone/library-unit/Types';
+import {
+  CityRegistry,
+  instance as cityRegistryInstance,
+} from '@civ-clone/core-city/CityRegistry';
 import { PathFinder, IPathFinder } from '@civ-clone/core-world-path/PathFinder';
 import {
   RuleRegistry,
   instance as ruleRegistryInstance,
 } from '@civ-clone/core-rule/RuleRegistry';
+import {
+  UnitRegistry,
+  instance as unitRegistryInstance,
+} from '@civ-clone/core-unit/UnitRegistry';
 import Action from '@civ-clone/core-unit/Action';
 import { Move } from '@civ-clone/library-unit/Actions';
 import ExpectedMovementCost from '@civ-clone/core-world-path/Rules/ExpectedMovementCost';
@@ -110,20 +118,50 @@ class OpenSet {
 }
 
 export class BasePathFinder extends PathFinder implements IBasePathFinder {
+  private _cityRegistry: CityRegistry;
   private _ruleRegistry: RuleRegistry;
+  private _unitRegistry: UnitRegistry;
 
   constructor(
     unit: Unit,
     start: Tile,
     end: Tile,
-    ruleRegistry: RuleRegistry = ruleRegistryInstance
+    ruleRegistry: RuleRegistry = ruleRegistryInstance,
+    cityRegistry: CityRegistry = cityRegistryInstance,
+    unitRegistry: UnitRegistry = unitRegistryInstance
   ) {
     super(unit, start, end);
 
+    this._cityRegistry = cityRegistry;
     this._ruleRegistry = ruleRegistry;
+    this._unitRegistry = unitRegistry;
+  }
+
+  /**
+   * Whether another player's unit or city is on `tile`. A route can't pass
+   * through one: there is no `Move` onto it, so a journey along the route
+   * would stop there (an aircraft sent home past a rival city stopped short and
+   * ran out of fuel, civ-clone/web-renderer#357). The destination is exempt,
+   * so a route can still lead to something to attack, trade with or visit.
+   */
+  private isHeldByAnotherPlayer(tile: Tile): boolean {
+    const player = this.unit().player(),
+      city = this._cityRegistry.getByTile(tile);
+
+    if (city !== null && city.player() !== player) {
+      return true;
+    }
+
+    return this._unitRegistry
+      .getByTile(tile)
+      .some((tileUnit: Unit): boolean => tileUnit.player() !== player);
   }
 
   private canMoveTo(tile: Tile): boolean {
+    if (tile !== this.end() && this.isHeldByAnotherPlayer(tile)) {
+      return false;
+    }
+
     if (this.unit() instanceof Air) {
       return true;
     }

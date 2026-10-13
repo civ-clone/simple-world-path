@@ -19,7 +19,6 @@
   },
   "devDependencies": {
     "@civ-clone/civ1-unit": "github:civ-clone/civ1-unit",
-    "@civ-clone/core-city": "^0.1.0",
     "@civ-clone/core-player": "^0.1.0",
     "@civ-clone/core-tile-improvement": "^0.1.0",
     "@civ-clone/core-unit-improvement": "^0.1.0",
@@ -37,6 +36,7 @@
     "typescript": "^4.0.3"
   },
   "dependencies": {
+    "@civ-clone/core-city": "^0.1.0",
     "@civ-clone/core-rule": "^0.1.0",
     "@civ-clone/core-terrain": "^0.1.0",
     "@civ-clone/core-unit": "^0.1.0",
