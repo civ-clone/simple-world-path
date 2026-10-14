@@ -218,6 +218,11 @@ export class BasePathFinder extends PathFinder implements IBasePathFinder {
    * `ExpectedMovementCost` rules say what it's worth on average. With no such
    * rule it costs a turn, because a unit short of the moves spends the rest of
    * its turn trying.
+   *
+   * A search asks this once for each step it considers: a tile's neighbours
+   * are costed when the tile is expanded, and each tile is expanded once, so
+   * caching step costs within a search would save nothing
+   * (civ-clone/web-renderer#307).
    */
   private stepCost(from: Tile, to: Tile, movement: number): number {
     const [cost] = this._ruleRegistry
