@@ -1,10 +1,12 @@
 import RuleRegistry from '@civ-clone/core-rule/RuleRegistry';
+import Action from '@civ-clone/core-unit/Action';
 import BasePathFinder from '../BasePathFinder';
 import City from '@civ-clone/core-city/City';
 import CityRegistry from '@civ-clone/core-city/CityRegistry';
 import Criterion from '@civ-clone/core-rule/Criterion';
 import Effect from '@civ-clone/core-rule/Effect';
 import ExpectedMovementCost from '@civ-clone/core-world-path/Rules/ExpectedMovementCost';
+import MovementCost from '@civ-clone/core-unit/Rules/MovementCost';
 import Path from '@civ-clone/core-world-path/Path';
 import Player from '@civ-clone/core-player/Player';
 import TileImprovementRegistry from '@civ-clone/core-tile-improvement/TileImprovementRegistry';
@@ -278,6 +280,44 @@ describe('BasePathFinder', () => {
 
     expect(coordinatesOf(path)).to.deep.equal(direct);
     expect(path.movementCost()).to.equal(6);
+  });
+
+  it('should run the MovementCost rules once for each step it considers', async () => {
+    // A tile's neighbours are costed when it is expanded, and it is expanded once, so a step is never costed twice in
+    // one search and there is nothing for a cache of step costs to save (civ-clone/web-renderer#307).
+    const costed = new Map<string, number>(),
+      rule = new MovementCost(
+        new Criterion((unit: Unit, action: Action): boolean => {
+          const step = `${action.from().x()},${action.from().y()}>${action
+            .to()
+            .x()},${action.to().y()}`;
+
+          costed.set(step, (costed.get(step) ?? 0) + 1);
+
+          return false;
+        })
+      );
+
+    ruleRegistry.register(rule);
+
+    try {
+      const world = await simpleWorldLoader('100G', 10, 10),
+        start = world.get(2, 2),
+        path = new BasePathFinder(
+          new Warrior(null, new Player(ruleRegistry), start, ruleRegistry),
+          start,
+          world.get(6, 6),
+          ruleRegistry
+        ).generate();
+
+      expect(path.length).to.equal(5);
+      expect(costed.size).to.be.greaterThan(path.length);
+      costed.forEach((times: number, step: string) =>
+        expect([step, times]).to.deep.equal([step, 1])
+      );
+    } finally {
+      ruleRegistry.unregister(rule);
+    }
   });
 
   describe('another player on the way', () => {
