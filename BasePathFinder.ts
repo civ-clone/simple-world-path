@@ -15,6 +15,7 @@ import {
 import Action from '@civ-clone/core-unit/Action';
 import { Move } from '@civ-clone/library-unit/Actions';
 import ExpectedMovementCost from '@civ-clone/core-world-path/Rules/ExpectedMovementCost';
+import Impassable from '@civ-clone/core-world-path/Rules/Impassable';
 import MovementCost from '@civ-clone/core-unit/Rules/MovementCost';
 import Path from '@civ-clone/core-world-path/Path';
 import Tile from '@civ-clone/core-world/Tile';
@@ -157,8 +158,21 @@ export class BasePathFinder extends PathFinder implements IBasePathFinder {
       .some((tileUnit: Unit): boolean => tileUnit.player() !== player);
   }
 
-  private canMoveTo(tile: Tile): boolean {
-    if (tile !== this.end() && this.isHeldByAnotherPlayer(tile)) {
+  /**
+   * Whether an `Impassable` rule says a route can't pass through `tile` from
+   * `from`. Like a tile held by another player, the destination is exempt.
+   */
+  private isImpassable(tile: Tile, from: Tile): boolean {
+    return this._ruleRegistry
+      .process(Impassable, this.unit(), tile, from)
+      .some((impassable: boolean): boolean => impassable);
+  }
+
+  private canMoveTo(tile: Tile, from: Tile): boolean {
+    if (
+      tile !== this.end() &&
+      (this.isHeldByAnotherPlayer(tile) || this.isImpassable(tile, from))
+    ) {
       return false;
     }
 
@@ -284,7 +298,7 @@ export class BasePathFinder extends PathFinder implements IBasePathFinder {
       done.add(current.tile);
 
       current.tile.getNeighbours().forEach((target: Tile): void => {
-        if (done.has(target) || !this.canMoveTo(target)) {
+        if (done.has(target) || !this.canMoveTo(target, current.tile)) {
           return;
         }
 

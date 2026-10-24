@@ -8,6 +8,7 @@ const RuleRegistry_1 = require("@civ-clone/core-rule/RuleRegistry");
 const UnitRegistry_1 = require("@civ-clone/core-unit/UnitRegistry");
 const Actions_1 = require("@civ-clone/library-unit/Actions");
 const ExpectedMovementCost_1 = require("@civ-clone/core-world-path/Rules/ExpectedMovementCost");
+const Impassable_1 = require("@civ-clone/core-world-path/Rules/Impassable");
 const MovementCost_1 = require("@civ-clone/core-unit/Rules/MovementCost");
 const Path_1 = require("@civ-clone/core-world-path/Path");
 /**
@@ -92,8 +93,18 @@ class BasePathFinder extends PathFinder_1.PathFinder {
             .getByTile(tile)
             .some((tileUnit) => tileUnit.player() !== player);
     }
-    canMoveTo(tile) {
-        if (tile !== this.end() && this.isHeldByAnotherPlayer(tile)) {
+    /**
+     * Whether an `Impassable` rule says a route can't pass through `tile` from
+     * `from`. Like a tile held by another player, the destination is exempt.
+     */
+    isImpassable(tile, from) {
+        return this._ruleRegistry
+            .process(Impassable_1.default, this.unit(), tile, from)
+            .some((impassable) => impassable);
+    }
+    canMoveTo(tile, from) {
+        if (tile !== this.end() &&
+            (this.isHeldByAnotherPlayer(tile) || this.isImpassable(tile, from))) {
             return false;
         }
         if (this.unit() instanceof Types_1.Air) {
@@ -180,7 +191,7 @@ class BasePathFinder extends PathFinder_1.PathFinder {
             }
             done.add(current.tile);
             current.tile.getNeighbours().forEach((target) => {
-                if (done.has(target) || !this.canMoveTo(target)) {
+                if (done.has(target) || !this.canMoveTo(target, current.tile)) {
                     return;
                 }
                 const candidate = this.createNode(target, current, this.stepCost(current.tile, target, movement)), known = best.get(target);

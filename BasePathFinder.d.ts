@@ -40,6 +40,11 @@ export declare class BasePathFinder
    * so a route can still lead to something to attack, trade with or visit.
    */
   private isHeldByAnotherPlayer;
+  /**
+   * Whether an `Impassable` rule says a route can't pass through `tile` from
+   * `from`. Like a tile held by another player, the destination is exempt.
+   */
+  private isImpassable;
   private canMoveTo;
   createNode(tile: Tile, parent?: Node | null, cost?: number): Node;
   createPath(node: Node): Path;
