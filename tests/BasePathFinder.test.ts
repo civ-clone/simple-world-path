@@ -6,6 +6,7 @@ import CityRegistry from '@civ-clone/core-city/CityRegistry';
 import Criterion from '@civ-clone/core-rule/Criterion';
 import Effect from '@civ-clone/core-rule/Effect';
 import ExpectedMovementCost from '@civ-clone/core-world-path/Rules/ExpectedMovementCost';
+import Impassable from '@civ-clone/core-world-path/Rules/Impassable';
 import MovementCost from '@civ-clone/core-unit/Rules/MovementCost';
 import Path from '@civ-clone/core-world-path/Path';
 import Player from '@civ-clone/core-player/Player';
@@ -183,6 +184,43 @@ describe('BasePathFinder', () => {
     build(world, Railroad, [...direct, ...detour]);
 
     expect(coordinatesOf(route(world, Tank))).to.deep.equal(direct);
+  });
+
+  describe('Impassable', () => {
+    // Blocks the tiles at `blocked`, for as long as `test` runs.
+    const withImpassable = async (
+      blocked: [number, number][],
+      test: () => Promise<void>
+    ): Promise<void> => {
+      const rule = new Impassable(
+        new Criterion((unit: Unit, to: Tile): boolean =>
+          blocked.some(([x, y]) => to.x() === x && to.y() === y)
+        ),
+        new Effect((): boolean => true)
+      );
+
+      ruleRegistry.register(rule);
+
+      try {
+        await test();
+      } finally {
+        ruleRegistry.unregister(rule);
+      }
+    };
+
+    it('should go round a tile an `Impassable` rule blocks', () =>
+      withImpassable([[4, 1]], async () => {
+        const world = await twoRoutes('5G');
+
+        expect(coordinatesOf(route(world))).to.deep.equal(detour);
+      }));
+
+    it('should still end on a blocked tile', () =>
+      withImpassable([[7, 1]], async () => {
+        const world = await twoRoutes('5G');
+
+        expect(coordinatesOf(route(world))).to.deep.equal(direct);
+      }));
   });
 
   it('should take the fewest steps when road costs add up to the same total', async () => {
